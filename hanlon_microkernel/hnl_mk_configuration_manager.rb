@@ -14,8 +14,8 @@ module HanlonMicrokernel
     MK_CONF_FILE = '/tmp/mk_conf.yaml'
     DEF_MK_GEM_MIRROR_URI = "http://localhost:2158"
     DEF_MK_GEMLIST_URI = "/gem-mirror/gems/gem.list"
-    DERIVED_CONFIG_KEYS = %w(mk_uri mk_register_path mk_checkin_path)
-    
+    DERIVED_CONFIG_KEYS = %w(mk_uri mk_register_path mk_checkin_path mk_vmodel_path)
+
     attr_reader :mk_checkin_interval
     attr_reader :mk_checkin_skew
     attr_reader :mk_uri
@@ -31,6 +31,9 @@ module HanlonMicrokernel
     attr_reader :mk_kmod_install_list_uri
     attr_reader :mk_gem_mirror
     attr_reader :mk_gemlist_uri
+    # added for VModel
+    attr_reader :mk_vmodel_path # : /project_hanlon/api/v1/policy/callback/
+    attr_reader :mk_nfs_server_ip
 
     def initialize
       @default_mk_log_level = Logger::INFO
@@ -72,6 +75,9 @@ module HanlonMicrokernel
       @mk_fact_excl_pattern = Regexp.new(mk_conf['mk_fact_excl_pattern'])
       @mk_register_path = mk_conf['mk_register_path']
       @mk_checkin_path = mk_conf['mk_checkin_path']
+      @mk_vmodel_path = mk_conf['mk_vmodel_path']
+      @mk_nfs_server_ip = mk_conf['mk_nfs_server_ip']
+
       case mk_conf['mk_log_level']
         when "Logger::FATAL"
           @mk_log_level = Logger::FATAL

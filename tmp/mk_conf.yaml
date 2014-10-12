@@ -11,3 +11,5 @@ mk_fact_excl_pattern: (^facter.*$)|(^id$)|(^kernel.*$)|(^memoryfree$)|(^operatin
 mk_log_level: Logger::INFO
 mk_gem_mirror: http://localhost:2158/gem-mirror
 mk_gemlist_uri: /gems/gem.list
+mk_vmodel_path: /hanlon/api/v1/policy/callback/vmodel
+mk_nfs_server_ip:

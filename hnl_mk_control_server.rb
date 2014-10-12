@@ -19,6 +19,7 @@ require 'hanlon_microkernel/hnl_mk_registration_manager'
 require 'hanlon_microkernel/hnl_mk_fact_manager'
 require 'hanlon_microkernel/hnl_mk_configuration_manager'
 require 'hanlon_microkernel/hnl_mk_kernel_module_manager'
+require 'hanlon_microkernel/hnl_mk_vmodel_manager'
 require 'hanlon_microkernel/hnl_mk_gem_controller'
 
 # load gems in the list available at #{mk_gemlist_uri} from the gem mirror
@@ -210,6 +211,9 @@ else
 
 end
 
+# get a reference to the VModel Manager instance (a singleton)
+vmodel_manager = (HanlonMicrokernel::HnlMkVModelManager).instance
+
 # convert the sleep times to milliseconds (for generating random skew value
 # and calculation of time remaining in each iteration; these will be to
 # the nearest millisecond)
@@ -249,6 +253,24 @@ loop do
       # change down the line.
       mac_id = fact_manager.get_mac_id_array
       uuid = fact_manager.get_uuid
+      vmodel_manager.uuid ||= uuid
+      vmodel_manager.mac_id ||= mac_id
+
+      # check to see if VModel phase is completed.
+      # Notify Hanlon server if VModel phase completed.
+      if ['firmware', 'bmc', 'ilo', 'raid', 'bios'].include?(idle)
+        # update idle
+        case vmodel_manager.get_vmodel_state(idle)
+        when 'running'
+          logger.debug("VModel phase #{idle} is running")
+        when 'done'
+          vmodel_manager.send_request_to_hanlon(idle, 'end')
+          idle = 'idle'
+        else
+          idle = 'idle'
+        end
+      end
+
 
       # check to see if this is the first checkin or not (this flag will be true until the
       # node successfully registers for the first time after boot, after that it will be
@@ -273,6 +295,10 @@ loop do
         # server would like the Microkernel Controller to take in response to the
         # checkin it just performed)
         command = response_hash['response']['command_name']
+        command_param = response_hash['response']['command_param']
+        vmodel_files = Array(command_param['file'])
+        vmodel_enabled = command_param['enabled']
+        config_map = response_hash['client_config']
 
         # then trigger appropriate action based on the command in the response
         if command == "acknowledge" then
@@ -303,10 +329,15 @@ loop do
           # powers off the node, NOW...no sense in logging this since the "filesystem"
           # is all in memory and will disappear when the poweroff happens
           %x[sudo poweroff now]
+        elsif command == "reset" then
+          logger.debug("Reset MK VModel")
+          vmodel_manager.reset_vmodel_state
+          vmodel_manager.send_request_to_hanlon('reset', 'do')
+        elsif ['firmware', 'bmc', 'ilo', 'raid', 'bios'].include?(command) then
+          idle = vmodel_manager.start_phase(command, :enabled => vmodel_enabled, :files => vmodel_files) unless config_map && config_manager.mk_config_has_changed?(config_map)
         end
 
         # next, check the configuration that is included in the response...
-        config_map = response_hash['client_config']
         if config_map
           # if the configuration from the response is different from the current
           # Microkernel Controller configuration, then post the new configuration

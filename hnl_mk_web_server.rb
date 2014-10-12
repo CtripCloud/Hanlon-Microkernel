@@ -13,14 +13,47 @@ require 'cgi'
 require 'json'
 require 'webrick'
 require 'hanlon_microkernel/hnl_mk_configuration_manager'
+require 'hanlon_microkernel/hnl_mk_vmodel_manager'
 require 'hanlon_microkernel/logging'
 
 # include the WEBrick mixin (makes this into a WEBrick server instance)
 include WEBrick
 
-# next, define our actions (as servlets)...for now we have one (used to
-# save the Microkernel Configuration)
+# next, define our actions (as servlets)...
 
+# used to control VModel phase
+class MKVModelServlet < HTTPServlet::AbstractServlet
+  def do_POST(req, res)
+    phase = req.query['phase']
+    action = req.query['action']
+    status, content_type, body = vmodel_controller(phase, action)
+
+    res.status = status
+    res['Content-Type'] = content_type
+    res.body = body
+  end
+
+  def vmodel_controller(phase, action)
+    vmodel_manager = (HanlonMicrokernel::HnlMkVModelManager).instance
+    case phase
+    when "firmware", "bmc", "ilo", "raid", "bios"
+      case action
+      when 'start'
+        ret = vmodel_manager.start_phase(phase)
+      when 'end'
+        ret = vmodel_manager.end_phase(phase)
+      else
+        return 400, "text/plain", "Action: [#{action}] for VModel phase #{phase} is not supported"
+      end
+    else
+      return 400, "text/plain", "VModel phase: [#{phase}] is not defined"
+    end
+
+    return 200, "text/plain", "OK #{ret}"
+  end
+end
+
+# used to save the Microkernel Configuration
 class MKConfigServlet < HTTPServlet::AbstractServlet
 
   def do_POST(req, res)
@@ -84,6 +117,7 @@ s = HTTPServer.new(:Port => 2156, :Logger => logger, :ServerType => WEBrick::Dae
 # mount our servlets as directories under our HTTP server's URI
 
 s.mount("/setMkConfig", MKConfigServlet)
+s.mount("/vmodel", MKVModelServlet)
 
 # setup the server to shut down if the process is shut down
 
